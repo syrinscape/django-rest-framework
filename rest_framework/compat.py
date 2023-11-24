@@ -491,17 +491,31 @@ class RequestFactory(DjangoRequestFactory):
 try:
     import markdown
 
+    if markdown.version <= '2.2':
+        HEADERID_EXT_PATH = 'headerid'
+        LEVEL_PARAM = 'level'
+    elif markdown.version < '2.6':
+        HEADERID_EXT_PATH = 'markdown.extensions.headerid'
+        LEVEL_PARAM = 'level'
+    else:
+        HEADERID_EXT_PATH = 'markdown.extensions.toc'
+        LEVEL_PARAM = 'baselevel'
+
     def apply_markdown(text):
         """
         Simple wrapper around :func:`markdown.markdown` to set the base level
         of '#' style headers to <h2>.
         """
-
-        extensions = ['headerid(level=2)']
-        safe_mode = False
-        md = markdown.Markdown(extensions=extensions, safe_mode=safe_mode)
+        extensions = [HEADERID_EXT_PATH]
+        extension_configs = {
+            HEADERID_EXT_PATH: {
+                LEVEL_PARAM: '2'
+            }
+        }
+        md = markdown.Markdown(
+            extensions=extensions, extension_configs=extension_configs
+        )
         return md.convert(text)
-
 except ImportError:
     apply_markdown = None
 
