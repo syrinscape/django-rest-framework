@@ -67,9 +67,12 @@ class RelatedField(WritableField):
         super(RelatedField, self).initialize(parent, field_name)
         if self.queryset is None and not self.read_only:
             manager = getattr(self.parent.opts.model, self.source or field_name)
-            if hasattr(manager, 'related'):  # Forward
-                self.queryset = manager.related.model._default_manager.all()
-            else:  # Reverse
+            if hasattr(manager, 'related'):  # Reverse
+                related_model = getattr(
+                    manager.related, 'related_model', manager.related.model
+                )
+                self.queryset = related_model._default_manager.all()
+            else:  # Forward
                 self.queryset = manager.field.rel.to._default_manager.all()
 
     ### We need this stuff to make form choices work...

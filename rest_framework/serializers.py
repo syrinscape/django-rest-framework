@@ -736,7 +736,7 @@ class ModelSerializer(Serializer):
             accessor_name = relation.get_accessor_name()
             if not self.opts.fields or accessor_name not in self.opts.fields:
                 continue
-            related_model = relation.model
+            related_model = getattr(relation, 'related_model', relation.model)
             to_many = relation.field.rel.multiple
             has_through_model = False
             is_m2m = isinstance(relation.field,

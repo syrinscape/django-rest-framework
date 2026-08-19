@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.test import TestCase
 from rest_framework import serializers
@@ -47,6 +48,88 @@ class NullableOneToOneTargetSerializer(serializers.ModelSerializer):
     class Meta:
         model = OneToOneTarget
         fields = ('id', 'name', 'nullable_source')
+
+
+class Django18RelationshipMetadataTests(TestCase):
+    def test_reverse_foreign_key_field_uses_related_model(self):
+        field = ForeignKeyTargetSerializer().fields['sources']
+
+        self.assertIsInstance(field, serializers.PrimaryKeyRelatedField)
+        self.assertTrue(field.many)
+        self.assertIs(field.queryset.model, ForeignKeySource)
+
+    def test_reverse_one_to_one_field_uses_related_model(self):
+        field = NullableOneToOneTargetSerializer().fields['nullable_source']
+
+        self.assertIsInstance(field, serializers.PrimaryKeyRelatedField)
+        self.assertFalse(field.many)
+        self.assertIs(field.queryset.model, NullableOneToOneSource)
+
+    def test_reverse_many_to_many_field_uses_related_model(self):
+        field = ManyToManyTargetSerializer().fields['sources']
+
+        self.assertIsInstance(field, serializers.PrimaryKeyRelatedField)
+        self.assertTrue(field.many)
+        self.assertIs(field.queryset.model, ManyToManySource)
+
+    def test_implicit_writable_reverse_field_uses_related_queryset(self):
+        class WritableReverseSerializer(serializers.ModelSerializer):
+            sources = serializers.PrimaryKeyRelatedField(many=True)
+
+            class Meta:
+                model = ForeignKeyTarget
+
+        target = ForeignKeyTarget.objects.create(name='target')
+        source = ForeignKeySource.objects.create(name='source', target=target)
+        target_without_source = ForeignKeyTarget.objects.create(name='other target')
+        field = WritableReverseSerializer().fields['sources']
+
+        self.assertIs(field.queryset.model, ForeignKeySource)
+        self.assertEqual(field.from_native(source.pk), source)
+        with self.assertRaises(ValidationError):
+            field.from_native(target_without_source.pk)
+
+    def test_forward_foreign_key_field_still_uses_target_model(self):
+        field = ForeignKeySourceSerializer().fields['target']
+
+        self.assertIsInstance(field, serializers.PrimaryKeyRelatedField)
+        self.assertFalse(field.many)
+        self.assertIs(field.queryset.model, ForeignKeyTarget)
+
+    def test_forward_many_to_many_field_still_uses_target_model(self):
+        field = ManyToManySourceSerializer().fields['targets']
+
+        self.assertIsInstance(field, serializers.PrimaryKeyRelatedField)
+        self.assertTrue(field.many)
+        self.assertIs(field.queryset.model, ManyToManyTarget)
+
+    def test_implicit_writable_forward_many_to_many_fields_use_target_queryset(self):
+        class WritableForwardSerializer(serializers.ModelSerializer):
+            targets_by_pk = serializers.PrimaryKeyRelatedField(
+                many=True, source='targets'
+            )
+            targets_by_name = serializers.SlugRelatedField(
+                many=True, slug_field='name', source='targets'
+            )
+
+            class Meta:
+                model = ManyToManySource
+
+        target = ManyToManyTarget.objects.create(name='target')
+        ManyToManySource.objects.create(name='source')
+        source_without_target = ManyToManySource.objects.create(
+            name='other source'
+        )
+        serializer = WritableForwardSerializer()
+        pk_field = serializer.fields['targets_by_pk']
+        slug_field = serializer.fields['targets_by_name']
+
+        self.assertIs(pk_field.queryset.model, ManyToManyTarget)
+        self.assertEqual(pk_field.from_native(target.pk), target)
+        with self.assertRaises(ValidationError):
+            pk_field.from_native(source_without_target.pk)
+        self.assertIs(slug_field.queryset.model, ManyToManyTarget)
+        self.assertEqual(slug_field.from_native(target.name), target)
 
 
 # TODO: Add test that .data cannot be accessed prior to .is_valid
