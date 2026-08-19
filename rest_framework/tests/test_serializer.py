@@ -744,6 +744,13 @@ class ManyToManyTests(TestCase):
         self.assertEqual(instance.pk, 2)
         self.assertEqual(list(instance.rel.all()), [self.anchor])
 
+    def test_create_with_tuple_derived_many_to_many_metadata(self):
+        """
+        Tuple-derived model metadata can be combined with virtual fields.
+        """
+        serializer = self.serializer_class(data={'rel': [self.anchor.id]})
+        self.assertTrue(serializer.is_valid())
+
     def test_update(self):
         """
         Update an instance of a model with a ManyToMany relationship.
