@@ -17,6 +17,7 @@ from rest_framework.authentication import (
     OAuthAuthentication,
     OAuth2Authentication
 )
+from rest_framework.authtoken import models as authtoken_models
 from rest_framework.authtoken.models import Token
 from rest_framework.compat import patterns, url, include
 from rest_framework.compat import oauth2_provider, oauth2_provider_models, oauth2_provider_scope
@@ -60,6 +61,25 @@ if oauth2_provider is not None:
         url(r'^oauth2-with-scope-test/$', MockView.as_view(authentication_classes=[OAuth2Authentication],
             permission_classes=[permissions.TokenHasReadWriteScope])),
     )
+
+
+class TokenKeyGenerationTests(TestCase):
+    def test_generate_key_returns_ascii_text(self):
+        raw = (
+            b"\xe0\xe1\xe2\xe3\xe4\xe5\xe6\xe7\xe8\xe9"
+            b"\xea\xeb\xec\xed\xee\xef\xf0\xf1\xf2\xf3"
+        )
+        expected = "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3"
+        original_urandom = authtoken_models.os.urandom
+        authtoken_models.os.urandom = lambda length: raw
+        try:
+            key = Token().generate_key()
+        finally:
+            authtoken_models.os.urandom = original_urandom
+
+        self.assertIs(type(key), str)
+        self.assertEqual(key, expected)
+        self.assertEqual("Token " + key, "Token " + expected)
 
 
 class BasicAuthTests(TestCase):
